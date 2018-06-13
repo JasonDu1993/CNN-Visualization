@@ -53,6 +53,7 @@ if __name__ == '__main__':
                                pick_feat=FLAGS.id)
 
     vizmap = vizmodel.layers['deconvim']
+    print('vizmap', vizmap)
     feat_op = vizmodel.feats
     max_act_op = vizmodel.max_act
 

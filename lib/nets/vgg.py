@@ -5,12 +5,13 @@
 
 import numpy as np
 import tensorflow as tf
-
+# import tensorflow.contrib.framework as framework
+# arg_scope = framework.arg_scope
+from tensorflow.contrib.framework import arg_scope
 from tensorcv.models.layers import *
 from tensorcv.models.base import BaseModel
 
 import lib.nets.layers as L
-
 
 VGG_MEAN = [103.939, 116.779, 123.68]
 
@@ -58,6 +59,7 @@ def resize_tensor_image_with_smallest_side(image, small_size):
 
 class BaseVGG(BaseModel):
     """ base of VGG class """
+
     def __init__(self, num_class=1000,
                  num_channels=3,
                  im_height=224, im_width=224,
@@ -105,10 +107,7 @@ class BaseVGG(BaseModel):
 
 
 class VGG19(BaseVGG):
-
     def _create_conv(self, input_im, data_dict):
-
-        arg_scope = tf.contrib.framework.arg_scope
         with arg_scope([conv], nl=tf.nn.relu,
                        trainable=True, data_dict=data_dict):
             conv1_1 = conv(input_im, 3, 64, 'conv1_1')
@@ -147,7 +146,6 @@ class VGG19(BaseVGG):
         return pool5
 
     def _create_model(self):
-
         with tf.name_scope('input'):
             input_im = self.model_input[0]
             keep_prob = self.model_input[1]
@@ -173,7 +171,6 @@ class VGG19(BaseVGG):
 
         conv_output = self._create_conv(input_bgr, data_dict)
 
-        arg_scope = tf.contrib.framework.arg_scope
         with arg_scope([fc], trainable=True, data_dict=data_dict):
             fc6 = fc(conv_output, 4096, 'fc6', nl=tf.nn.relu)
             dropout_fc6 = dropout(fc6, keep_prob, self.is_training)
@@ -189,7 +186,6 @@ class VGG19(BaseVGG):
 
 
 class VGG19_FCN(VGG19):
-
     def _create_model(self):
 
         with tf.name_scope('input'):
@@ -197,7 +193,7 @@ class VGG19_FCN(VGG19):
             keep_prob = self.model_input[1]
 
             if self._is_rescale:
-                input_im =\
+                input_im = \
                     resize_tensor_image_with_smallest_side(input_im, 224)
             self.layer['input'] = input_im
 
@@ -218,7 +214,6 @@ class VGG19_FCN(VGG19):
 
         conv_outptu = self._create_conv(input_bgr, data_dict)
 
-        arg_scope = tf.contrib.framework.arg_scope
         with arg_scope([conv], trainable=True,
                        data_dict=data_dict, padding='VALID'):
 
@@ -241,15 +236,12 @@ class VGG19_FCN(VGG19):
 
 class BaseVGG19(BaseModel):
     def __init__(self):
-
         self._trainable = False
         self._switch = False
 
     def _sub_mean(self, inputs):
         VGG_MEAN = [103.939, 116.779, 123.68]
-        red, green, blue = tf.split(axis=3,
-                                    num_or_size_splits=3,
-                                    value=inputs)
+        red, green, blue = tf.split(value=inputs, axis=3, num_or_size_splits=3)
         input_bgr = tf.concat(axis=3, values=[
             blue - VGG_MEAN[0],
             green - VGG_MEAN[1],
@@ -258,24 +250,35 @@ class BaseVGG19(BaseModel):
         return input_bgr
 
     def _creat_conv(self, inputs, layer_dict, data_dict={}):
+        """create the VGG19 model
 
+        Args:
+            inputs: 4D-Tensor, [N, H, W, C]
+            layer_dict: dict, the key is the layer name, the value is the return of conv or maxpool
+            data_dict: dict, the key is the layer name, the value is the
+
+        Returns:
+
+        """
         self.receptive_s = 1
         self.stride_t = 1
-        self.receptive_size = {}
-        self.stride = {}
+        self.receptive_size = {}  # the key is the layer name, the value is the receptive size of this layer
+        self.stride = {}  # the key is the layer name, the value is the stride of this layer
+        # self.cur_input the variable is the function conv_layer or pool_layer, then will save this function conv return
         self.cur_input = inputs
 
         def conv_layer(filter_size, out_dim, name):
             init_w = tf.keras.initializers.he_normal()
             # init_w = None
             layer_dict[name] = conv(self.cur_input, filter_size, out_dim, name, init_w=init_w)
+            print('layer_dict[name]', layer_dict[name])
             self.receptive_s = self.receptive_s + (filter_size - 1) * self.stride_t
             self.receptive_size[name] = self.receptive_s
             self.stride[name] = self.stride_t
             self.cur_input = layer_dict[name]
 
         def pool_layer(name, switch=True, padding='SAME'):
-            layer_dict[name], layer_dict['switch_{}'.format(name)] =\
+            layer_dict[name], layer_dict['switch_{}'.format(name)] = \
                 L.max_pool(self.cur_input, name, padding=padding, switch=switch)
             self.receptive_s = self.receptive_s + self.stride_t
             self.receptive_size[name] = self.receptive_s
@@ -283,10 +286,8 @@ class BaseVGG19(BaseModel):
             self.stride[name] = self.stride_t
             self.cur_input = layer_dict[name]
 
-        arg_scope = tf.contrib.framework.arg_scope
         with arg_scope([conv], nl=tf.nn.relu,
                        trainable=self._trainable, data_dict=data_dict):
-
             conv_layer(3, 64, 'conv1_1')
             conv_layer(3, 64, 'conv1_2')
             pool_layer('pool1', switch=self._switch)
@@ -314,30 +315,55 @@ class BaseVGG19(BaseModel):
             pool_layer('pool5', switch=self._switch)
 
         return self.cur_input
- 
+
 
 def threshold_tensor(x, thr, thr_type):
+    """A Tensor satisfy the condition. First, get the tensor condition through the operation thr_type.
+    Then if condition has True, chooses the value at x, else become 0.
+  element
+
+    Args:
+        x: Tensor,
+        thr: float, the threshold value
+        thr_type: function, for example tf.equal
+
+    Returns:
+        A Tensor shape as the same of x, the value satisfy the condition.
+    """
     cond = thr_type(x, tf.ones(tf.shape(x)) * thr)
     out = tf.where(cond, x, tf.zeros(tf.shape(x)))
 
     return out
 
+
 class DeconvBaseVGG19(BaseVGG19):
     def __init__(self, pre_train_path, feat_key, pick_feat=None):
-
+        # self.data_dict the variable is a dict, the key is the vgg19 layer name, for example conv5_4, fc6,
+        # the value is list,
         self.data_dict = np.load(pre_train_path,
                                  encoding='latin1').item()
-
+        """
+        print(len(list(self.data_dict.keys())), list(self.data_dict.keys()))
+        for data_key in list(self.data_dict.keys()):
+            print('data_key', data_key, 'length', len(self.data_dict[data_key]))
+            for data in self.data_dict[data_key]:
+                print(data.shape)
+        print('DeconvBaseVGG19 data_dict', self.data_dict)
+        """
+        # self.im = tf.placeholder(tf.float32,
+        #                          [None, None, None, 3],
+        #                          name='im')
         self.im = tf.placeholder(tf.float32,
-                                     [None, None, None, 3],
-                                     name='im')
+                                 [1, 224, 224, 3],
+                                 name='im')
 
         self._feat_key = feat_key
         self._pick_feat = pick_feat
         self._trainable = False
         self._switch = True
-        self.layers = {}
+        self.layers = {}  # the key is the layer name, the value is the return of conv or maxpool
         self._create_model()
+        print('layers', len(list(self.layers.keys())), list(self.layers.keys()))
 
     def _create_model(self):
         input_im = self._sub_mean(self.im)
@@ -345,38 +371,42 @@ class DeconvBaseVGG19(BaseVGG19):
 
         cur_feats = self.layers[self._feat_key]
         try:
-            self.max_act = tf.reduce_max(cur_feats[:, :, :, self._pick_feat])
+            # cur_feats_pick will increase axis or decrease.if _pick_feat is None, cur_feats_pick shape increase
+            # for example  cur_feats shape is (1,14,14,512),cur_feats_pick shape is (1, 14, 14, 1, 512)
+            cur_feats_pick = cur_feats[:, :, :, self._pick_feat]
+            print(cur_feats_pick, cur_feats)
+            self.max_act = tf.reduce_max(cur_feats_pick)  # Int, the cur_feats_pick max value
             self.feats = threshold_tensor(cur_feats, self.max_act, tf.equal)
         except ValueError:
-        # else:
+            # else:
             self.max_act = tf.reduce_max(cur_feats)
             self.feats = threshold_tensor(cur_feats, self.max_act, tf.greater_equal)
-        
+        # print('self._feat_key', self._feat_key)
         self.layers['de{}'.format(self._feat_key)] = self.feats
+        # print('self.layers', self.layers)
         self._create_deconv(self.layers, data_dict=self.data_dict)
 
     def _create_deconv(self, layer_dict, data_dict={}):
         def deconv_block(input_key, output_key, n_feat, name):
             try:
-                layer_dict[output_key] =\
+                layer_dict[output_key] = \
                     L.transpose_conv(layer_dict[input_key],
                                      out_dim=n_feat,
                                      name=name,
-                                    )
+                                     )
             except KeyError:
                 pass
 
         def unpool_block(input_key, output_key, switch_key, name):
             try:
-                layer_dict[output_key] =\
-                    L.unpool_2d(layer_dict[input_key], 
-                                layer_dict[switch_key], 
-                                stride=[1, 2, 2, 1], 
+                layer_dict[output_key] = \
+                    L.unpool_2d(layer_dict[input_key],
+                                layer_dict[switch_key],
+                                stride=[1, 2, 2, 1],
                                 scope=name)
             except KeyError:
                 pass
 
-        arg_scope = tf.contrib.framework.arg_scope
         with arg_scope([L.transpose_conv],
                        filter_size=3,
                        nl=tf.nn.relu,
@@ -407,10 +437,10 @@ class DeconvBaseVGG19(BaseVGG19):
             deconv_block('deconv2_2', 'deconv2_1', 128, 'conv2_2')
             deconv_block('deconv2_1', 'depool1', 64, 'conv2_1')
             unpool_block('depool1', 'deconv1_2', 'switch_pool1', 'unpool1')
-            
+
             deconv_block('deconv1_2', 'deconv1_1', 64, 'conv1_2')
 
-        layer_dict['deconvim'] =\
+        layer_dict['deconvim'] = \
             L.transpose_conv(layer_dict['deconv1_1'],
                              3,
                              3,
@@ -420,4 +450,3 @@ class DeconvBaseVGG19(BaseVGG19):
                              use_bias=False,
                              stride=1,
                              name='conv1_1')
-
