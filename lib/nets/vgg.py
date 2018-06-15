@@ -254,7 +254,8 @@ class BaseVGG19(BaseModel):
 
         Args:
             inputs: 4D-Tensor, [N, H, W, C]
-            layer_dict: dict, the key is the layer name, the value is the return of conv or maxpool
+            layer_dict: dict, the key is the layer name, the value is the return of conv or maxpool,
+                which shape is [no, ho, wo, co]
             data_dict: dict, the key is the layer name, the value is the
 
         Returns:
@@ -354,7 +355,7 @@ class DeconvBaseVGG19(BaseVGG19):
         #                          [None, None, None, 3],
         #                          name='im')
         self.im = tf.placeholder(tf.float32,
-                                 [1, 224, 224, 3],
+                                 [None, 224, 224, 3],
                                  name='im')
 
         self._feat_key = feat_key
@@ -372,10 +373,10 @@ class DeconvBaseVGG19(BaseVGG19):
         cur_feats = self.layers[self._feat_key]
         try:
             # cur_feats_pick will increase axis or decrease.if _pick_feat is None, cur_feats_pick shape increase
-            # for example  cur_feats shape is (1,14,14,512),cur_feats_pick shape is (1, 14, 14, 1, 512)
+            # for example if _pick_feat is None cur_feats shape is (1,14,14,512), then
+            # cur_feats_pick shape is (1, 14, 14, 1, 512)
             cur_feats_pick = cur_feats[:, :, :, self._pick_feat]
-            print(cur_feats_pick, cur_feats)
-            self.max_act = tf.reduce_max(cur_feats_pick)  # Int, the cur_feats_pick max value
+            self.max_act = tf.reduce_max(cur_feats_pick)  # 1D Tensor, the cur_feats_pick max value
             self.feats = threshold_tensor(cur_feats, self.max_act, tf.equal)
         except ValueError:
             # else:

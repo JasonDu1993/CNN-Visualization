@@ -19,29 +19,29 @@ def transpose_conv(x, filter_size, out_dim, data_dict, out_shape=None, use_bias=
         x: [N, H,W, C]
         filter_size: [fh, fw, oc, ic]
         out_dim: Int, the feature channel number
-        data_dict: dict,
-        out_shape:
+        data_dict: dict, for example, vgg19 key is dict_keys(['conv5_4', 'conv5_1', 'fc6', 'conv5_3', 'conv5_2',
+            'conv4_4', 'fc7', 'conv4_1', 'conv4_2', 'conv4_3', 'fc8', 'conv3_4', 'conv3_3', 'conv3_2', 'conv3_1',
+            'conv1_1', 'conv1_2', 'conv2_2', 'conv2_1'])
+        out_shape: 1D-Tensor,default the shape is (4,).
         use_bias: Boolean,
         reuse: Boolean,
-        stride: Int or list with length 2
+        stride: Int or list with length 2, default=2
         padding: Str, either `'VALID'` or `'SAME'`.
-        trainable: Boolean,
+        trainable: Boolean, If `True` also add the variable to the graph collection `GraphKeys.TRAINABLE_VARIABLES` (see `tf.Variable`).\n
         nl: a function, tf.identity return a tensor with the same shape and contents as input
-        name: Str
+        name: Str, the layer name
 
     Returns:
 
     """
-    print('transpose_conv x:', x, 'out_dim:', out_dim, 'stride:', stride)
+    # print('transpose_conv x:', x, 'out_dim:', out_dim, 'stride:', stride)
     stride = get_shape4D(stride)  # default return [1, 2, 2, 1]
-    print('data_dict keys list', data_dict.keys())
+    # print('data_dict keys list', data_dict.keys())
     in_dim = x.get_shape().as_list()[-1]  # int, the number of the feature channel
     print('in_dim', in_dim)
     # TODO other ways to determine the output shape
     x_shape = tf.shape(x)
-    print('x_shape', x_shape)
     # assume output shape is input_shape*stride
-    print('out_shape', out_shape)
     if out_shape is None:
         out_shape = tf.stack([x_shape[0],
                               tf.multiply(x_shape[1], stride[1]),

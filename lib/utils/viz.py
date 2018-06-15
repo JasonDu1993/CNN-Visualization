@@ -30,6 +30,7 @@ def image_weight_mask(image, mask):
             image[:, :, c] = np.multiply(image[:, :, c], mask)
         return image
 
+
 # def save_merge_images(images, merge_grid, save_path, color=False, tanh=False):
 #     """Save multiple images with same size into one larger image.
 #     The best size number is
@@ -117,17 +118,6 @@ def viz_filters(filters,
         j = idx // grid_size[1]
         cur_filter = filters[:, :, :, pick_id[idx]]
         merge_im[j * (h + gap) + gap: j * (h + gap) + h + gap,
-                 i * (w + gap) + gap: i * (w + gap) + w + gap, :]\
+        i * (w + gap) + gap: i * (w + gap) + w + gap, :] \
             = nf(cur_filter)
     scipy.misc.imsave(save_path, np.squeeze(merge_im))
-
-
-
-
-
-
-
-
-
-
-

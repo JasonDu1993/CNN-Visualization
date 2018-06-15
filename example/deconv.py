@@ -13,14 +13,15 @@ from tensorcv.dataflow.image import ImageFromFile
 import config_path as config
 
 import sys
+
 sys.path.append('../')
 from lib.nets.vgg import DeconvBaseVGG19, BaseVGG19
 import lib.utils.viz as viz
 import lib.utils.normalize as normlize
 import lib.utils.image as uim
 
-
 IM_SIZE = 224
+
 
 def get_parse():
     parser = argparse.ArgumentParser()
@@ -34,12 +35,14 @@ def get_parse():
 
     return parser.parse_args()
 
+
 def im_scale(im):
     return uim.im_rescale(im, [IM_SIZE, IM_SIZE])
 
+
 if __name__ == '__main__':
     FLAGS = get_parse()
-    
+
     input_im = ImageFromFile(FLAGS.imtype,
                              data_dir=config.im_path,
                              num_channel=3,
@@ -47,15 +50,15 @@ if __name__ == '__main__':
                              pf=im_scale,
                              )
     input_im.set_batch_size(1)
-
+    print('size', input_im.size())
     vizmodel = DeconvBaseVGG19(config.vgg_path,
                                feat_key=FLAGS.feat,
                                pick_feat=FLAGS.id)
 
-    vizmap = vizmodel.layers['deconvim']
+    vizmap = vizmodel.layers['deconvim']  #
     print('vizmap', vizmap)
-    feat_op = vizmodel.feats
-    max_act_op = vizmodel.max_act
+    feat_op = vizmodel.feats  # 4D Tensor, Dim is [N, H, W, C], depending on FLAGS.feat
+    max_act_op = vizmodel.max_act  # 1D Tensor, the cur_feats_pick max value
 
     act_size = vizmodel.receptive_size[FLAGS.feat]
     act_scale = vizmodel.stride[FLAGS.feat]
@@ -64,25 +67,31 @@ if __name__ == '__main__':
         sess.run(tf.global_variables_initializer())
 
         max_act_list = []
+        print('input_im.epochs_completed', input_im.epochs_completed)
         while input_im.epochs_completed < 1:
             im = input_im.next_batch()[0]
             max_act = sess.run(max_act_op, feed_dict={vizmodel.im: im})
             max_act_list.append(max_act)
-
+        print('max_act_list', max_act_list)
         max_list = np.argsort(max_act_list)[::-1]
+        print('max_list', max_list)
         im_file_list = input_im.get_data_list()[0]
+        print('im_file_list', im_file_list)
 
         feat_list = []
         im_list = []
         for i in range(0, 10):
             im = input_im.next_batch()[0]
             file_path = os.path.join(config.im_path, im_file_list[max_list[i]])
-            im = np.array([im_scale(scipy.misc.imread(file_path, mode='RGB'))])
+            print('file_path', file_path)
+            a = scipy.misc.imread(file_path, mode='RGB')
+            print('a', type(a), a.shape)
+            im = np.array([im_scale(a)])
 
             cur_vizmap, feat_map, max_act = sess.run(
                 [vizmap, feat_op, max_act_op], feed_dict={vizmodel.im: im})
 
-            act_ind = np.nonzero((feat_map))
+            act_ind = np.nonzero(feat_map)
             print('Location of max activation {}'.format(act_ind))
             # get only the first nonzero element
             act_c = (act_ind[1][0], act_ind[2][0])
@@ -100,7 +109,7 @@ if __name__ == '__main__':
                              'constant',
                              constant_values=0)
             act_crop = np.pad(act_crop,
-                              ((0, pad_size[0]),(0, pad_size[1]), (0, 0)),
+                              ((0, pad_size[0]), (0, pad_size[1]), (0, 0)),
                               'constant',
                               constant_values=0)
 
@@ -121,4 +130,3 @@ if __name__ == '__main__':
                         gap_color=0,
                         nf=normlize.indentity,
                         shuffle=False)
-        
