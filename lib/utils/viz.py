@@ -78,18 +78,22 @@ def image_weight_mask(image, mask):
 
 #     scipy.misc.imsave(save_path, merge_img)
 
-def viz_filters(filters,
-                grid_size,
-                save_path,
-                gap=0,
-                gap_color=0,
-                nf=normlize.indentity,
-                shuffle=True):
-    """ Visualization conv2d filters
+def viz_filters(filters, grid_size, save_path, gap=0, gap_color=0, nf=normlize.indentity, shuffle=True):
+    """ Visualization conv2d filters, n_features images will save in one image
 
     Args:
         filters: [size_x, size_y, n_channel, n_features]
-                or [size_x, size_y, n_features]
+                or [size_x, size_y, n_features], n_features represents have n images
+        grid_size: List, request the length ==2, represent the [row, column],
+        save_path: Str, the save path of visualization filters
+        gap: Int,
+        gap_color: Int,
+        nf: normlize function, default is normlize.indentity, other function detail in lib/utils/nnormlize.py
+        shuffle: Boolean, If True,
+
+
+    Returns:
+
 
     """
     filters = np.array(filters)
@@ -103,21 +107,25 @@ def viz_filters(filters,
 
     h = filters.shape[0]
     w = filters.shape[1]
-
+    print('h', h, 'w', w, 'filters.shape', filters.shape)
     merge_im = np.zeros((h * grid_size[0] + (grid_size[0] + 1) * gap,
                          w * grid_size[1] + (grid_size[1] + 1) * gap,
                          n_channel)) + gap_color
-
+    print('merge_im', merge_im.shape)
     n_viz_filter = min(filters.shape[-1], grid_size[0] * grid_size[1])
-    if shuffle == True:
+    print('n_viz_filter', n_viz_filter)
+    if shuffle is True:
         pick_id = np.random.permutation(filters.shape[-1])
     else:
         pick_id = range(0, filters.shape[-1])
+    print('pick_id', pick_id)
     for idx in range(0, n_viz_filter):
         i = idx % grid_size[1]
         j = idx // grid_size[1]
+        print('idx', idx, i, j, grid_size[1])
+        print('pick_id[idx]', pick_id[idx])
         cur_filter = filters[:, :, :, pick_id[idx]]
-        merge_im[j * (h + gap) + gap: j * (h + gap) + h + gap,
-        i * (w + gap) + gap: i * (w + gap) + w + gap, :] \
-            = nf(cur_filter)
+        merge_im[j * (h + gap) + gap: j * (h + gap) + h + gap, i * (w + gap) + gap: i * (w + gap) + w + gap, :] = \
+            nf(cur_filter)
+    print('merge_im', merge_im.shape)
     scipy.misc.imsave(save_path, np.squeeze(merge_im))

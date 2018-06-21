@@ -38,7 +38,7 @@ def transpose_conv(x, filter_size, out_dim, data_dict, out_shape=None, use_bias=
     stride = get_shape4D(stride)  # default return [1, 2, 2, 1]
     # print('data_dict keys list', data_dict.keys())
     in_dim = x.get_shape().as_list()[-1]  # int, the number of the feature channel
-    print('in_dim', in_dim)
+    # print('in_dim', in_dim)
     # TODO other ways to determine the output shape
     x_shape = tf.shape(x)
     # assume output shape is input_shape*stride
@@ -46,10 +46,8 @@ def transpose_conv(x, filter_size, out_dim, data_dict, out_shape=None, use_bias=
         out_shape = tf.stack([x_shape[0],
                               tf.multiply(x_shape[1], stride[1]),
                               tf.multiply(x_shape[2], stride[2]),
-                              out_dim])
-    print('out_shape', out_shape)
-    filter_shape = get_shape2D(filter_size) + [out_dim, in_dim]
-    print('filter_shape', filter_shape)
+                              out_dim])  # Tensor, Dim is (4,) the value represents the (N, H, W, C)
+    filter_shape = get_shape2D(filter_size) + [out_dim, in_dim]  # List, length is 4, represent the [fh, fw, oc, ic]
     with tf.variable_scope(name) as scope:
         if reuse is True:
             scope.reuse_variables()
@@ -60,7 +58,7 @@ def transpose_conv(x, filter_size, out_dim, data_dict, out_shape=None, use_bias=
                 load_data = data_dict[name][0]
             except KeyError:
                 load_data = data_dict[name]['weights']
-            print('Load {} weights!'.format(name))
+            print('transpose_conv Load {} weights!'.format(name))
             # load_data = np.reshape(load_data, shape)
             # load_data = tf.nn.l2_normalize(
             #     tf.transpose(load_data, perm=[1, 0, 2, 3]))
@@ -72,7 +70,7 @@ def transpose_conv(x, filter_size, out_dim, data_dict, out_shape=None, use_bias=
                     load_data = data_dict[name][1]
                 except KeyError:
                     load_data = data_dict[name]['biases']
-                print('Load {} biases!'.format(name))
+                print('transpose_conv Load {} biases!'.format(name))
                 init_b = tf.constant_initializer(load_data)
 
         weights = tf.get_variable('weights',
@@ -85,7 +83,6 @@ def transpose_conv(x, filter_size, out_dim, data_dict, out_shape=None, use_bias=
                                      initializer=init_b,
                                      trainable=trainable)
             x = tf.nn.bias_add(x, -biases)
-        print('out_shape', out_shape)
         output = tf.nn.conv2d_transpose(x,
                                         weights,
                                         output_shape=out_shape,

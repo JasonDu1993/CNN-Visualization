@@ -58,7 +58,7 @@ if __name__ == '__main__':
     vizmap = vizmodel.layers['deconvim']  #
     print('vizmap', vizmap)
     feat_op = vizmodel.feats  # 4D Tensor, Dim is [N, H, W, C], depending on FLAGS.feat
-    max_act_op = vizmodel.max_act  # 1D Tensor, the cur_feats_pick max value
+    max_act_op = vizmodel.max_act  # 1D Tensor, the cur_feats_pick max value, depending on FLAGS.feat
 
     act_size = vizmodel.receptive_size[FLAGS.feat]
     act_scale = vizmodel.stride[FLAGS.feat]
@@ -72,11 +72,11 @@ if __name__ == '__main__':
             im = input_im.next_batch()[0]
             max_act = sess.run(max_act_op, feed_dict={vizmodel.im: im})
             max_act_list.append(max_act)
-        print('max_act_list', max_act_list)
+        print('max_act_list', len(max_act_list), max_act_list)
         max_list = np.argsort(max_act_list)[::-1]
-        print('max_list', max_list)
+        print('max_list', len(max_list), max_list)
         im_file_list = input_im.get_data_list()[0]
-        print('im_file_list', im_file_list)
+        print('im_file_list', len(im_file_list), im_file_list)
 
         feat_list = []
         im_list = []
@@ -84,36 +84,42 @@ if __name__ == '__main__':
             im = input_im.next_batch()[0]
             file_path = os.path.join(config.im_path, im_file_list[max_list[i]])
             print('file_path', file_path)
-            a = scipy.misc.imread(file_path, mode='RGB')
-            print('a', type(a), a.shape)
-            im = np.array([im_scale(a)])
-
+            misc_imread = scipy.misc.imread(file_path, mode='RGB')
+            print('misc_imread', type(misc_imread), misc_imread.shape)
+            im = np.array([im_scale(misc_imread)])
+            print('im', type(im), im.shape)
             cur_vizmap, feat_map, max_act = sess.run(
                 [vizmap, feat_op, max_act_op], feed_dict={vizmodel.im: im})
-
+            print('cur_vizmap', cur_vizmap.shape, 'feat_map', feat_map.shape, 'max_act', max_act.shape)
             act_ind = np.nonzero(feat_map)
             print('Location of max activation {}'.format(act_ind))
             # get only the first nonzero element
-            act_c = (act_ind[1][0], act_ind[2][0])
-            min_x = max(0, int(act_c[0] * act_scale - act_size / 2))
-            max_x = min(IM_SIZE, int(act_c[0] * act_scale + act_size / 2))
-            min_y = max(0, int(act_c[1] * act_scale - act_size / 2))
-            max_y = min(IM_SIZE, int(act_c[1] * act_scale + act_size / 2))
-
+            print('act_ind', act_ind)
+            # act_first_hw_tuple is a tuple(h, w), record the first max value h, w position in the feat_map
+            act_first_hw_tuple = (act_ind[1][0], act_ind[2][0])
+            print('act_first_hw_tuple', act_first_hw_tuple)
+            min_x = max(0, int(act_first_hw_tuple[0] * act_scale - act_size / 2))
+            max_x = min(IM_SIZE, int(act_first_hw_tuple[0] * act_scale + act_size / 2))
+            min_y = max(0, int(act_first_hw_tuple[1] * act_scale - act_size / 2))
+            max_y = min(IM_SIZE, int(act_first_hw_tuple[1] * act_scale + act_size / 2))
+            print('min_x', min_x, 'max_x', max_x, 'min_y', min_y, 'max_y', max_y, 'act_scale', act_scale, 'act_size',
+                  act_size)
             im_crop = im[0, min_x:max_x, min_y:max_y, :]
-            act_crop = cur_vizmap[0, min_x:max_x, min_y:max_y, :]
-
+            print('im_crop', im_crop.shape)
+            feat_crop = cur_vizmap[0, min_x:max_x, min_y:max_y, :]
+            print('feat_crop', feat_crop.shape)
             pad_size = (act_size - im_crop.shape[0], act_size - im_crop.shape[1])
+            print('pad_size', pad_size)
             im_crop = np.pad(im_crop,
                              ((0, pad_size[0]), (0, pad_size[1]), (0, 0)),
                              'constant',
                              constant_values=0)
-            act_crop = np.pad(act_crop,
+            feat_crop = np.pad(feat_crop,
                               ((0, pad_size[0]), (0, pad_size[1]), (0, 0)),
                               'constant',
                               constant_values=0)
 
-            feat_list.append(act_crop)
+            feat_list.append(feat_crop)
             im_list.append(im_crop)
 
         viz.viz_filters(np.transpose(feat_list, (1, 2, 3, 0)),
